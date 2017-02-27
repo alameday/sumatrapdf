@@ -40,8 +40,6 @@ static void SwapTabs(WindowInfo* win, int tab1, int tab2);
 #define TABBAR_HEIGHT 24
 #define MIN_TAB_WIDTH 100
 
-static bool g_FirefoxStyle = false;
-
 int GetTabbarHeight(HWND hwnd, float factor) {
     int dy = DpiScaleY(hwnd, TABBAR_HEIGHT);
     return (int)(dy * factor);
@@ -95,10 +93,12 @@ class TabPainter {
     // Generates a GraphicsPath, which is used for painting the tab, etc.
     bool Reshape(int dx, int dy) {
         dx--;
-        if (width == dx && height == dy)
+        if (width == dx && height == dy) {
             return false;
+        }
+
         width = dx;
-        height = dy;
+        height = dy + 1;
 
         GraphicsPath shape;
         // define tab's body
@@ -107,6 +107,12 @@ class TabPainter {
         shape.AddArc(width - c, 0, c, c, 270.0f, 90.0f);
         shape.AddLine(width, height, 0, height);
         shape.CloseFigure();
+        shape.SetMarker();
+
+        // define tab's outline
+        shape.AddArc(2, 0, c, c, 180.0f, 90.0f);
+        shape.AddArc(width - c - 4, 0, c, c, 270.0f, 90.0f);
+        shape.AddLine(width, height, 0, height);
         shape.SetMarker();
 
         // define "x"'s circle
@@ -139,6 +145,7 @@ class TabPainter {
         GraphicsPath shape;
         GraphicsPathIterator iterator(&shapes);
         iterator.NextMarker(&shape);
+        iterator.NextMarker(&shape);
 
         ClientRect rClient(hwnd);
         REAL yPosTab = inTitlebar ? 0.0f : REAL(rClient.dy - height - 1);
@@ -161,8 +168,9 @@ class TabPainter {
 
     // Invalidates the tab's region in the client area.
     void Invalidate(int index) {
-        if (index < 0)
+        if (index < 0) {
             return;
+        }
 
         Graphics graphics(hwnd);
         GraphicsPath shapes(data->Points, data->Types, data->Count);
@@ -185,9 +193,9 @@ class TabPainter {
 
         // paint the background
         bool isTranslucentMode = inTitlebar && dwm::IsCompositionEnabled();
-        if (isTranslucentMode)
+        if (isTranslucentMode) {
             PaintParentBackground(hwnd, hdc);
-        else {
+        } else {
             HBRUSH brush = CreateSolidBrush(colors.bar);
             FillRect(hdc, &rc, brush);
             DeleteObject(brush);
@@ -223,45 +231,11 @@ class TabPainter {
             graphics.ResetTransform();
             graphics.TranslateTransform(1.f + (REAL)(width + 1) * i - (REAL)rc.left, yPosTab - (REAL)rc.top);
 
-            if (!graphics.IsVisible(0, 0, width + 1, height + 1))
-                continue;
-
-            // in firefox style we only paint current and highlighed tabs
-            // all other tabs only show
-            bool onlyText = g_FirefoxStyle && !((current == i) || (highlighted == i));
-            if (onlyText) {
-#if 0
-                // we need to first paint the background with the same color as caption,
-                // otherwise the text looks funny (because is transparent?)
-                // TODO: what is the damn bg color of caption? bar is too light, outline is too dark
-                Color bgColTmp;
-                bgColTmp.SetFromCOLORREF(color.bar);
-                {
-                    SolidBrush bgBr(bgColTmp);
-                    graphics.FillRectangle(&bgBr, layout);
-                }
-                bgColTmp.SetFromCOLORREF(color.outline);
-                {
-                    SolidBrush bgBr(bgColTmp);
-                    graphics.FillRectangle(&bgBr, layout);
-                }
-#endif
-                // TODO: this is a hack. If I use no background and cleartype, the
-                // text looks funny (is bold).
-                // CompositingModeSourceCopy doesn't work with clear type
-                // another option is to draw background before drawing text, but
-                // I can't figure out what is the actual color of caption
-                graphics.SetTextRenderingHint(TextRenderingHintAntiAliasGridFit);
-                graphics.SetCompositingMode(CompositingModeSourceCopy);
-                // graphics.SetCompositingMode(CompositingModeSourceOver);
-                br.SetColor(ToColor(colors.text));
-                graphics.DrawString(text.At(i), -1, &f, layout, &sf, &br);
-                graphics.SetTextRenderingHint(TextRenderingHintClearTypeGridFit);
+            if (!graphics.IsVisible(0, 0, width + 1, height + 1)) {
                 continue;
             }
 
             COLORREF bgCol = colors.background;
-            ;
             if (current == i) {
                 bgCol = colors.current;
             } else if (highlighted == i) {
@@ -295,6 +269,11 @@ class TabPainter {
             br.SetColor(ToColor(bgCol));
             graphics.FillPath(&br, &shape);
 
+            // paint tab's outline
+            iterator.NextMarker(&shape);
+            pen.SetColor(ToColor(colors.outline));
+            graphics.DrawPath(&pen, &shape);
+
             // draw tab's text
             graphics.SetCompositingMode(CompositingModeSourceOver);
             br.SetColor(ToColor(textCol));
@@ -313,10 +292,11 @@ class TabPainter {
 
             // paint "x"
             iterator.NextMarker(&shape);
-            if (xClicked == i || xHighlighted == i)
+            if (xClicked == i || xHighlighted == i) {
                 pen.SetColor(ToColor(colors.x_line));
-            else
+            } else {
                 pen.SetColor(ToColor(colors.outline));
+            }
             graphics.DrawPath(&pen, &shape);
             iterator.Rewind();
         }
@@ -325,16 +305,11 @@ class TabPainter {
     // Evaluates the colors for the tab's elements.
     void EvaluateColors(bool force) {
         COLORREF bg, txt;
-        if (inTitlebar) {
-            WindowInfo* win = FindWindowInfoByHwnd(hwnd);
-            bg = win->caption->bgColor;
-            txt = win->caption->textColor;
-        } else {
-            bg = GetSysColor(TAB_COLOR_BG);
-            txt = GetSysColor(TAB_COLOR_TEXT);
-        }
-        if (!force && bg == colors.bar && txt == colors.text)
+        bg = GetSysColor(TAB_COLOR_BG);
+        txt = GetSysColor(TAB_COLOR_TEXT);
+        if (!force && bg == colors.bar && txt == colors.text) {
             return;
+        }
 
         colors.bar = bg;
         colors.text = txt;
@@ -646,9 +621,11 @@ static LRESULT CALLBACK WndProcTabBar(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
 }
 
 void CreateTabbar(WindowInfo* win) {
-    HWND hwndTabBar = CreateWindow(WC_TABCONTROL, L"", WS_CHILD | WS_CLIPSIBLINGS /*| WS_VISIBLE*/ | TCS_FOCUSNEVER |
-                                                           TCS_FIXEDWIDTH | TCS_FORCELABELLEFT,
-                                   0, 0, 0, 0, win->hwndFrame, (HMENU)IDC_TABBAR, GetModuleHandle(nullptr), nullptr);
+    DWORD dwStyle = WS_CHILD | WS_CLIPSIBLINGS /*| WS_VISIBLE*/ | TCS_FOCUSNEVER |
+        TCS_FIXEDWIDTH | TCS_FORCELABELLEFT;
+    HMODULE h = GetModuleHandleW(nullptr);
+    HWND hwndTabBar = CreateWindowW(WC_TABCONTROL, L"", dwStyle,
+                                   0, 0, 0, 0, win->hwndFrame, (HMENU)IDC_TABBAR, h, nullptr);
 
     if (!DefWndProcTabBar)
         DefWndProcTabBar = (WNDPROC)GetWindowLongPtr(hwndTabBar, GWLP_WNDPROC);
@@ -875,8 +852,9 @@ void SetTabsInTitlebar(WindowInfo* win, bool set) {
     tab->inTitlebar = set;
     SetParent(win->hwndTabBar, set ? win->hwndCaption : win->hwndFrame);
     ShowWindow(win->hwndCaption, set ? SW_SHOW : SW_HIDE);
-    if (set != win->isMenuHidden)
+    if (set != win->isMenuHidden) {
         ShowHideMenuBar(win);
+    }
     if (set) {
         win->caption->UpdateTheme();
         win->caption->UpdateColors(win->hwndFrame == GetForegroundWindow());
@@ -888,7 +866,8 @@ void SetTabsInTitlebar(WindowInfo* win, bool set) {
         dwm::ExtendFrameIntoClientArea(win->hwndFrame, &margins);
         win->extendedFrameHeight = 0;
     }
-    SetWindowPos(win->hwndFrame, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOSIZE | SWP_NOMOVE);
+    UINT uFlags = SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOSIZE | SWP_NOMOVE;
+    SetWindowPos(win->hwndFrame, nullptr, 0, 0, 0, 0, uFlags);
 }
 
 // Selects the given tab (0-based index).
