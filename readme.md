@@ -13,4 +13,4 @@ works.
 
 Open `vs2015/SumatraPDF.sln`.
 
-[![Build status](https://ci.appveyor.com/api/projects/status/tesjtgmpy26uf8p7?svg=true)](https://ci.appveyor.com/project/kjk/sumatrapdf)
+[![Build status](https://ci.appveyor.com/api/projects/status/aq02v5jewo88bdsn?svg=true)](https://ci.appveyor.com/project/zklhp/sumatrapdf)
