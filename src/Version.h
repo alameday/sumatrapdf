@@ -15,7 +15,7 @@
 
 #define APP_NAME_STR       L"SumatraPDF"
 
-// #define SVN_PRE_RELEASE_VER 2295
+#define SVN_PRE_RELEASE_VER 2296
 
 #define _QUOTEME(x) #x
 #define QM(x) _QUOTEME(x)
