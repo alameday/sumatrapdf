@@ -76,6 +76,7 @@
 #include "Version.h"
 #define NOLOG 0
 #include "DebugLog.h"
+#include "Theme.h"
 
 /* if true, we're in debug mode where we show links as blue rectangle on
    the screen. Makes debugging code related to links easier. */
@@ -602,8 +603,10 @@ void RebuildMenuBarForWindow(WindowInfo *win)
 {
     HMENU oldMenu = win->menu;
     win->menu = BuildMenu(win);
-    if (!win->presentation && !win->isFullScreen && !win->isMenuHidden)
+    if (!win->presentation && !win->isFullScreen && !win->isMenuHidden) {
         SetMenu(win->hwndFrame, win->menu);
+    }
+    FreeMenuOwnerDrawInfoData(oldMenu);
     DestroyMenu(oldMenu);
 }
 
@@ -2009,14 +2012,9 @@ static void RerenderEverything()
 
 void GetFixedPageUiColors(COLORREF& text, COLORREF& bg)
 {
-    if (gGlobalPrefs->useSysColors) {
-        text = GetSysColor(COLOR_WINDOWTEXT);
-        bg = GetSysColor(COLOR_WINDOW);
-    }
-    else {
-        text = gGlobalPrefs->fixedPageUI.textColor;
-        bg = gGlobalPrefs->fixedPageUI.backgroundColor;
-    }
+    
+    text = GetCurrentTheme()->document.textColor;
+    bg = GetCurrentTheme()->document.backgroundColor;
     if (gGlobalPrefs->fixedPageUI.invertColors) {
         std::swap(text, bg);
     }
@@ -2024,15 +2022,8 @@ void GetFixedPageUiColors(COLORREF& text, COLORREF& bg)
 
 void GetEbookUiColors(COLORREF& text, COLORREF& bg)
 {
-    if (gGlobalPrefs->useSysColors) {
-        text = GetSysColor(COLOR_WINDOWTEXT);
-        bg = GetSysColor(COLOR_WINDOW);
-    }
-    else {
-        text = gGlobalPrefs->ebookUI.textColor;
-        bg = gGlobalPrefs->ebookUI.backgroundColor;
-    }
-    // TODO: respect gGlobalPrefs->fixedPageUI.invertColors?
+    text = GetCurrentTheme()->document.textColor;
+    bg = GetCurrentTheme()->document.backgroundColor;
 }
 
 void UpdateDocumentColors()
@@ -2190,40 +2181,48 @@ bool MayCloseWindow(WindowInfo *win)
 void CloseWindow(WindowInfo *win, bool quitIfLast, bool forceClose)
 {
     CrashIf(!win);
-    if (!win) return;
+    if (!win) {
+        return;
+    }
 
     CrashIf(forceClose && !quitIfLast);
-    if (forceClose) quitIfLast = true;
+    if (forceClose) {
+        quitIfLast = true;
+    }
 
     // when used as an embedded plugin, closing should happen automatically
     // when the parent window is destroyed (cf. WM_DESTROY)
-    if (gPluginMode && gWindows.Find(win) == 0 && !forceClose)
+    if (gPluginMode && gWindows.Find(win) == 0 && !forceClose) {
         return;
+    }
 
     AbortFinding(win, true);
     AbortPrinting(win);
 
-    if (win->AsFixed())
+    if (win->AsFixed()) {
         win->AsFixed()->dontRenderFlag = true;
-    else if (win->AsEbook())
+    } else if (win->AsEbook()) {
         win->AsEbook()->EnableMessageHandling(false);
-    if (win->presentation)
+    }
+    if (win->presentation) {
         ExitFullScreen(win);
+    }
 
     bool lastWindow = (1 == gWindows.Count());
     // RememberDefaultWindowPosition becomes a no-op once the window is hidden
     RememberDefaultWindowPosition(*win);
     // hide the window before saving prefs (closing seems slightly faster that way)
-    if (!lastWindow || quitIfLast)
+    if (!lastWindow || quitIfLast) {
         ShowWindow(win->hwndFrame, SW_HIDE);
+    }
     if (lastWindow) {
         // don't call RememberSessionState if OnMenuExit already has
         // also don't remember a single document (unless quitting through Menu -> Exit)
-        if (quitIfLast && gGlobalPrefs->sessionData->Count() == 0 && win->tabs.Count() > 1)
+        if (quitIfLast && gGlobalPrefs->sessionData->Count() == 0 && win->tabs.Count() > 1) {
             RememberSessionState();
+        }
         prefs::Save();
-    }
-    else {
+    } else {
         // this happens otherwise in prefs::Save
         for (TabInfo *tab : win->tabs) {
             UpdateTabFileDisplayStateForWin(win, tab);
@@ -2240,13 +2239,14 @@ void CloseWindow(WindowInfo *win, bool quitIfLast, bool forceClose)
         SetFocus(win->hwndFrame);
         CrashIf(!gWindows.Contains(win));
     } else {
+        FreeMenuOwnerDrawInfoData(win->menu);
         HWND hwndToDestroy = win->hwndFrame;
         DeleteWindowInfo(win);
         DestroyWindow(hwndToDestroy);
     }
 
     if (lastWindow && quitIfLast) {
-        AssertCrash(0 == gWindows.Count());
+        CrashIf(gWindows.Count() != 0);
         PostQuitMessage(0);
     }
 }
@@ -3763,6 +3763,18 @@ static LRESULT FrameOnCommand(WindowInfo *win, HWND hwnd, UINT msg, WPARAM wPara
         GoToFavoriteByMenuId(win, wmId);
     }
 
+    // check if the menuId belongs to a theme
+    if ((wmId >= IDM_CHANGE_THEME_FIRST) && (wmId <= IDM_CHANGE_THEME_LAST)) {
+        auto newThemeName = GetThemeByIndex(wmId - IDM_CHANGE_THEME_FIRST)->name;
+        str::ReplacePtr(&gGlobalPrefs->themeName, newThemeName);
+        RelayoutWindow(win);    // fix tabbar height
+        UpdateDocumentColors();     // update document colors
+        RedrawWindow(win->hwndFrame, nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);   // paint new theme
+        UpdateDocumentColors();     // doing this a second time ensures the frequently read documents are updated
+        UpdateMenu(win, (HMENU)wParam); // update the radio buttons
+        prefs::Save();  // save new preferences
+    }
+
     if (!win)
         return DefWindowProc(hwnd, msg, wParam, lParam);
 
@@ -4151,6 +4163,16 @@ LRESULT CALLBACK WndProcFrame(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         case WM_COMMAND:
             return FrameOnCommand(win, hwnd, msg, wParam, lParam);
 
+#if defined(EXP_MENU_OWNER_DRAW)
+        case WM_MEASUREITEM:
+            MenuOwnerDrawnMesureItem(hwnd, (MEASUREITEMSTRUCT*)lParam);
+            return TRUE;
+
+        case WM_DRAWITEM:
+            MenuOwnerDrawnDrawItem(hwnd, (DRAWITEMSTRUCT*)lParam);
+            return TRUE;
+#endif
+
         case WM_APPCOMMAND:
             // both keyboard and mouse drivers should produce WM_APPCOMMAND
             // messages for their special keys, so handle these here and return
@@ -4235,14 +4257,13 @@ InitMouseWheelInfo:
             return 0;
 
         case WM_SYSCOLORCHANGE:
-            if (gGlobalPrefs->useSysColors)
-                UpdateDocumentColors();
             break;
 
         case WM_MOUSEWHEEL:
         case WM_MOUSEHWHEEL:
-            if (!win || !win->IsDocLoaded())
+            if (!win || !win->IsDocLoaded()) {
                 break;
+            }
             if (win->AsChm()) {
                 return win->AsChm()->PassUIMsg(msg, wParam, lParam);
             }
@@ -4253,17 +4274,22 @@ InitMouseWheelInfo:
             return SendMessage(win->hwndCanvas, msg, wParam, lParam);
 
         case WM_CLOSE:
-            if (MayCloseWindow(win))
+            if (MayCloseWindow(win)) {
                 CloseWindow(win, true);
+            }
             break;
 
-        case WM_DESTROY:
-            /* WM_DESTROY is generated by windows when close button is pressed
-               or if we explicitly call DestroyWindow()
-               It might be sent as a result of File\Close, in which
-               case CloseWindow() has already been called. */
-            if (win)
-                CloseWindow(win, true, true);
+        case WM_DESTROY: 
+            {
+                /* WM_DESTROY is generated by windows when close button is pressed
+                   or if we explicitly call DestroyWindow()
+                   It might be sent as a result of File\Close, in which
+                   case CloseWindow() has already been called. */
+                FreeMenuOwnerDrawInfoData(GetMenu(hwnd));
+                if (win) {
+                    CloseWindow(win, true, true);
+                }
+            }
             break;
 
         case WM_ENDSESSION:

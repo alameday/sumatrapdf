@@ -15,6 +15,7 @@
 // layout controllers
 #include "SettingsStructs.h"
 #include "Controller.h"
+#include "Theme.h"
 #include "GlobalPrefs.h"
 // ui
 #include "SumatraPDF.h"
@@ -330,9 +331,10 @@ void UpdateTocColors(WindowInfo *win)
     COLORREF splitterCol = GetSysColor(COLOR_BTNFACE);
     bool flatTreeWnd = false;
 
-    if (win->AsEbook() && !gGlobalPrefs->useSysColors) {
-        labelBgCol = gGlobalPrefs->ebookUI.backgroundColor;
-        labelTxtCol = gGlobalPrefs->ebookUI.textColor;
+    if (win->AsEbook()) {
+        labelBgCol = GetCurrentTheme()->document.backgroundColor;
+        labelTxtCol = GetCurrentTheme()->document.textColor;
+
         treeBgCol = labelBgCol;
         float factor = 14.f;
         int sign = GetLightness(labelBgCol) + factor > 255 ? 1 : -1;

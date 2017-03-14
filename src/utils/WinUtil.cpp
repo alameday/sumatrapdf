@@ -528,17 +528,27 @@ void DrawCenteredText(HDC hdc, const RECT &r, const WCHAR *txt, bool isRTL) {
 }
 
 /* Return size of a text <txt> in a given <hwnd>, taking into account its font */
-SizeI TextSizeInHwnd(HWND hwnd, const WCHAR *txt) {
+SizeI TextSizeInHwnd(HWND hwnd, const WCHAR *txt, HFONT font) {
     SIZE sz;
     size_t txtLen = str::Len(txt);
     HDC dc = GetWindowDC(hwnd);
     /* GetWindowDC() returns dc with default state, so we have to first set
        window's current font into dc */
-    HFONT f = (HFONT)SendMessage(hwnd, WM_GETFONT, 0, 0);
-    HGDIOBJ prev = SelectObject(dc, f);
+    if (font == nullptr) {
+        font = (HFONT)SendMessage(hwnd, WM_GETFONT, 0, 0);
+    }
+    HGDIOBJ prev = SelectObject(dc, font);
     GetTextExtentPoint32(dc, txt, (int)txtLen, &sz);
     SelectObject(dc, prev);
     ReleaseDC(hwnd, dc);
+    return SizeI(sz.cx, sz.cy);
+}
+
+/* Return size of a text <txt> in a given <hdc>, taking into account its font */
+SizeI TextSizeInDC(HDC hdc, const WCHAR *txt) {
+    SIZE sz;
+    size_t txtLen = str::Len(txt);
+    GetTextExtentPoint32(hdc, txt, (int)txtLen, &sz);
     return SizeI(sz.cx, sz.cy);
 }
 
@@ -766,7 +776,7 @@ void SetText(HMENU m, UINT id, WCHAR *s) {
     mii.fType = MFT_STRING;
     mii.dwTypeData = s;
     mii.cch = (UINT)str::Len(s);
-    SetMenuItemInfo(m, id, FALSE, &mii);
+    SetMenuItemInfoW(m, id, FALSE, &mii);
 }
 
 /* Make a string safe to be displayed as a menu item
