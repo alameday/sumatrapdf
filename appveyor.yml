@@ -25,10 +25,14 @@ test_script:
 
 artifacts:
   - path: rel\SumatraPDF.exe
+    name: SumatraPDF-32Bit.zip
   - path: rel\Installer.exe
+    name: Installer-32Bit.zip
   - path: rel\SumatraPDF.pdb.lzsa
   - path: rel64\SumatraPDF.exe
+    name: SumatraPDF-64Bit.zip
   - path: rel64\Installer.exe
+    name: Installer-64Bit.zip
   - path: rel64\SumatraPDF.pdb.lzsa
 
 deploy:
@@ -37,17 +41,3 @@ deploy:
   auth_token:
     secure: vTGHHL3yUo0fvU4u/P9YbNrllG2JlHJzuQIZTf9Vdq0ZfuM1x4zu3p1FpMOlhnFf
   artifact: Installer-32bit.zip, SumatraPDF-32Bit.zip, Installer-64Bit.zip, SumatraPDF-64Bit.zip
-
-on_success:
-- cmd: >-
-    7z a Installer-32Bit.zip %APPVEYOR_BUILD_FOLDER%\rel\Installer.exe
-    appveyor PushArtifact Installer-32Bit.zip
-
-    7z a SumatraPDF-32Bit.zip %APPVEYOR_BUILD_FOLDER%\rel\SumatraPDF.exe
-    appveyor PushArtifact SumatraPDF-32Bit.zip
-
-    7z a Installer-64Bit.zip %APPVEYOR_BUILD_FOLDER%\rel64\Installer.exe
-    appveyor PushArtifact Installer-64Bit.zip
-
-    7z a SumatraPDF-64Bit.zip %APPVEYOR_BUILD_FOLDER%\rel64\SumatraPDF.exe
-    appveyor PushArtifact SumatraPDF-64Bit.zip
