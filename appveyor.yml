@@ -26,17 +26,22 @@ test_script:
 artifacts:
   - path: rel\SumatraPDF.exe
     name: SumatraPDF-32Bit.zip
+    type: Zip
   - path: rel\Installer.exe
     name: Installer-32Bit.zip
+    type: Zip
   - path: rel\SumatraPDF.pdb.lzsa
   - path: rel64\SumatraPDF.exe
     name: SumatraPDF-64Bit.zip
+    type: Zip
   - path: rel64\Installer.exe
     name: Installer-64Bit.zip
   - path: rel64\SumatraPDF.pdb.lzsa
+    type: Zip
 
 deploy:
 - provider: GitHub
+  release: Nightly build $(appveyor_build_version).
   description: Nightly build.
   auth_token:
     secure: vTGHHL3yUo0fvU4u/P9YbNrllG2JlHJzuQIZTf9Vdq0ZfuM1x4zu3p1FpMOlhnFf
