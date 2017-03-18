@@ -58,5 +58,4 @@ deploy:
   auth_token:
     secure: vTGHHL3yUo0fvU4u/P9YbNrllG2JlHJzuQIZTf9Vdq0ZfuM1x4zu3p1FpMOlhnFf
   artifact: Installer-32bit.zip, SumatraPDF-32Bit.zip, Installer-64Bit.zip, SumatraPDF-64Bit.zip
-
-  
+  prerelease: true
