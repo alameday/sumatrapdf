@@ -30,3 +30,24 @@ artifacts:
   - path: rel64\SumatraPDF.exe
   - path: rel64\Installer.exe
   - path: rel64\SumatraPDF.pdb.lzsa
+
+deploy:
+- provider: GitHub
+  description: Nightly build.
+  auth_token:
+    secure: vTGHHL3yUo0fvU4u/P9YbNrllG2JlHJzuQIZTf9Vdq0ZfuM1x4zu3p1FpMOlhnFf
+  artifact: Installer-32bit.zip, SumatraPDF-32Bit.zip, Installer-64Bit.zip, SumatraPDF-64Bit.zip
+
+on_success:
+- cmd: >-
+    7z a Installer-32Bit.zip %APPVEYOR_BUILD_FOLDER%\rel\Installer.exe
+    appveyor PushArtifact Installer-32Bit.zip
+
+    7z a SumatraPDF-32Bit.zip %APPVEYOR_BUILD_FOLDER%\rel\SumatraPDF.exe
+    appveyor PushArtifact SumatraPDF-32Bit.zip
+
+    7z a Installer-64Bit.zip %APPVEYOR_BUILD_FOLDER%\rel64\Installer.exe
+    appveyor PushArtifact Installer-64Bit.zip
+
+    7z a SumatraPDF-64Bit.zip %APPVEYOR_BUILD_FOLDER%\rel64\SumatraPDF.exe
+    appveyor PushArtifact SumatraPDF-64Bit.zip
